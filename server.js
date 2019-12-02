@@ -5,7 +5,9 @@ const bodyParser = require('body-parser')
 const cors = require('cors')
 
 const mongoose = require('mongoose')
-mongoose.connect(process.env.MLAB_URI || 'mongodb://localhost/exercise-track' )
+
+const shortid = require('shortid');
+
 
 app.use(cors())
 
@@ -18,6 +20,10 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html')
 });
 
+app.post("/api/exercise/new-user", (req, res) => {
+  console.log("New user received: " + req.body.username);
+    res.json({ username: req.body.username });
+});
 
 // Not found middleware
 app.use((req, res, next) => {
@@ -43,6 +49,30 @@ app.use((err, req, res, next) => {
     .send(errMessage)
 })
 
-const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Your app is listening on port ' + listener.address().port)
-})
+
+
+const dbConfig = { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true};
+const userSchema = new mongoose.Schema({
+  _id: { type: String, default: shortid.generate },
+  username: { type: String, required: true, unique: true },
+  log: [{
+    description: String,
+    duration: Number,
+    date: { type: Date, default: Date.now }
+  }]
+});
+const User = mongoose.model('User', userSchema);
+
+mongoose
+  .connect(process.env.MLAB_URI, dbConfig)
+  .then(result => {
+    // start the server
+    const listener = app.listen(process.env.PORT || 3000, () => {
+        console.log('App is listening on port ' + listener.address().port)
+    });
+  })
+  .catch(err => {
+    console.log(err);
+  });
+
+
