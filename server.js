@@ -70,6 +70,44 @@ app.post("/api/exercise/add", async (req, res) => {
   }
 });
 
+// GET EXERCISE LOG
+app.get("/api/exercise/log", async (req, res) => {
+  // define the date conditions if from/to were provided
+  const conditionFrom = {}, conditionTo = {};
+  if(req.query.from) conditionFrom.$gte = ["$$this.date", new Date(req.query.from)];
+  if(req.query.to) conditionTo.$lte = ["$$this.date", new Date(req.query.to)];
+  
+  // define filter for dates
+  const logDateFilter = { $filter: { input: '$log', cond: { $and: [conditionFrom, conditionTo]} }}
+  // if a limit was provided, add a slice
+  const logSliceAndFilter = req.query.limit
+    ? { $slice: [logDateFilter, parseInt(req.query.limit)]}
+    : logDateFilter
+  
+  try {
+    const user = await User.aggregate([ 
+      { $match: { _id: req.query.userId} },
+      { 
+        $project: {
+          username: "$username",
+          count: { $literal: 0 }, // temporarily add in a count of 0
+          log: logSliceAndFilter
+        }  
+      }
+    ]);
+    
+    if(user.length === 0) {
+      res.send("userId " + req.query.userId + " not found");
+    } else {
+      user[0].count = user[0].log.length; // set count to the filtered log length
+      res.json(user[0]);
+    }
+  } catch(e) {
+    console.log(e);
+    res.send("Sorry, an error has occurred");
+  }
+});
+
 // Not found middleware
 app.use((req, res, next) => {
   return next({status: 404, message: 'not found'})
@@ -97,15 +135,16 @@ app.use((err, req, res, next) => {
 
 
 const dbConfig = { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true};
-const userSchema = new mongoose.Schema({
-  _id: { type: String, default: shortid.generate },
-  username: { type: String, required: true, unique: true },
-  log: [{
+const exerciseSchema = {
     _id: false,
     description: String,
     duration: Number,
     date: { type: Date, default: Date.now }
-  }]
+};
+const userSchema = new mongoose.Schema({
+  _id: { type: String, default: shortid.generate },
+  username: { type: String, required: true, unique: true },
+  log: [exerciseSchema]
 });
 const User = mongoose.model('User', userSchema);
 
