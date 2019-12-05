@@ -6,6 +6,7 @@ const cors = require('cors')
 
 const mongoose = require('mongoose')
 
+// use shortid to generate random, non-repeating userIds
 const shortid = require('shortid');
 
 
@@ -22,7 +23,6 @@ app.get('/', (req, res) => {
 
 // CREATE A NEW USER
 app.post("/api/exercise/new-user", async (req, res) => {
-  console.log("New user received: " + req.body.username);
   let newUser = new User({username: req.body.username});
   try {
     const results = await newUser.save();
@@ -36,8 +36,8 @@ app.post("/api/exercise/new-user", async (req, res) => {
 // GET LIST OF USERS
 app.get("/api/exercise/users", async (req, res) => {
   try {
+    // retrieve all users and exclude the log field
     const results = await User.find({}, { log: 0 });
-    console.log(results);
     res.send(results);
   } catch(e) {
     console.log(e);
@@ -48,7 +48,6 @@ app.get("/api/exercise/users", async (req, res) => {
 // ADD NEW EXERCISE
 app.post("/api/exercise/add", async (req, res) => {
   const user = await User.findById(req.body.userId);
-  console.log(user);
   if(!user) {
     res.send("userId " + req.body.userId + " not found");
     return;
@@ -58,6 +57,7 @@ app.post("/api/exercise/add", async (req, res) => {
     duration: req.body.duration
   }
   // if a date was provided, set it in the exercise
+  //  otherwise MongoDB will default it to Date.now()
   if(req.body.date) exercise.date = req.body.date
   user.log.push(exercise);
   
@@ -72,21 +72,21 @@ app.post("/api/exercise/add", async (req, res) => {
 
 // GET EXERCISE LOG
 app.get("/api/exercise/log", async (req, res) => {
-  // define the date conditions if from/to were provided
+  // define the date conditions if from and/or to were provided
   const conditionFrom = {}, conditionTo = {};
   if(req.query.from) conditionFrom.$gte = ["$$this.date", new Date(req.query.from)];
   if(req.query.to) conditionTo.$lte = ["$$this.date", new Date(req.query.to)];
   
-  // define filter for dates
+  // set up filter for dates
   const logDateFilter = { $filter: { input: '$log', cond: { $and: [conditionFrom, conditionTo]} }}
-  // if a limit was provided, add a slice
+  // if a limit was provided, add a $slice to the pipeline
   const logSliceAndFilter = req.query.limit
     ? { $slice: [logDateFilter, parseInt(req.query.limit)]}
     : logDateFilter
   
   try {
     const user = await User.aggregate([ 
-      { $match: { _id: req.query.userId} },
+      { $match: { _id: req.query.userId} }, // look first for document matching _id
       { 
         $project: {
           username: "$username",
@@ -110,7 +110,7 @@ app.get("/api/exercise/log", async (req, res) => {
 
 // Not found middleware
 app.use((req, res, next) => {
-  return next({status: 404, message: 'not found'})
+  return next({status: 404, message: '404: Page not found'})
 })
 
 // Error Handling middleware
