@@ -52,10 +52,10 @@ app.post("/api/exercise/add", async (req, res) => {
     res.send("userId " + req.body.userId + " not found");
     return;
   } 
-  const exercise = { 
+  const exercise = new Exercise({ 
     description: req.body.description,
     duration: req.body.duration
-  }
+  });
   // if a date was provided, set it in the exercise
   //  otherwise MongoDB will default it to Date.now()
   if(req.body.date) exercise.date = req.body.date
@@ -63,7 +63,14 @@ app.post("/api/exercise/add", async (req, res) => {
   
   try {
     await user.save();
-    res.json(user);
+    // res.json(user);
+    res.json({
+      _id: user._id,
+      username: user.username,
+      description: exercise.description,
+      duration: exercise.duration,
+      date: exercise.date
+    })
   } catch(e) {
     console.log(e);
     res.send("Sorry, there was an error saving the exercise.");
@@ -147,6 +154,7 @@ const userSchema = new mongoose.Schema({
   log: [exerciseSchema]
 });
 const User = mongoose.model('User', userSchema);
+const Exercise = mongoose.model('Exercise', exerciseSchema);
 
 mongoose
   .connect(process.env.MLAB_URI, dbConfig)
